@@ -113,8 +113,15 @@ if t_current - st.session_state.token_reset_time >= 60:
     st.session_state.token_count = 0
     st.session_state.token_reset_time = t_current
 
+# Calculate transcript token usage
+transcript_tokens = 0
+if st.session_state.transcripts_texts:
+    transcript_str = "\n\n".join(st.session_state.transcripts_texts)
+    transcript_tokens = count_tokens(transcript_str)
+
 st.sidebar.title("Token Usage")
 st.sidebar.metric("Tokens this minute", st.session_state.token_count, f"Limit: {TOKEN_LIMIT_PER_MINUTE}")
+st.sidebar.metric("Transcript tokens", transcript_tokens, f"Max: {MAX_TRANSCRIPT_TOKENS}")
 
 # Main: Chat interface
 st.title("Therapy Session Chatbot")
