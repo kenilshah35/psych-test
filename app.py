@@ -10,12 +10,13 @@ import time
 # Configure page
 st.set_page_config(page_title="Therapy Chatbot", page_icon="💬")
 
-# Constants
-MODEL_NAME = "llama-3.3-70b-versatile"
+# Constants - now using environment variables
+MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 API_KEY = os.getenv("GROQ_API_KEY")
 BASE_URL = "https://api.groq.com/openai/v1"
-MAX_TRANSCRIPT_TOKENS = 9000
-TOKEN_LIMIT_PER_MINUTE = 12000
+MAX_TRANSCRIPT_TOKENS = int(os.getenv("MAX_TRANSCRIPT_TOKENS", "9000"))
+TOKEN_LIMIT_PER_MINUTE = int(os.getenv("TOKEN_LIMIT_PER_MINUTE", "12000"))
+CONTEXT_TOKEN_THRESHOLD = int(os.getenv("CONTEXT_TOKEN_THRESHOLD", "11500"))
 
 # Ensure API key is set
 if not API_KEY:
@@ -148,7 +149,7 @@ if user_input := st.chat_input("Your message"):
     # Display the user message immediately
     st.chat_message("user").write(user_input)
     # Remove oldest chats if context token usage exceeds threshold
-    while count_message_tokens(system_messages + st.session_state.chat_history) > 11500 and st.session_state.chat_history:
+    while count_message_tokens(system_messages + st.session_state.chat_history) > CONTEXT_TOKEN_THRESHOLD and st.session_state.chat_history:
         st.session_state.chat_history.pop(0)
     # Prepare messages and update token usage counter
     full_messages = system_messages + st.session_state.chat_history
