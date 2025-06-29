@@ -13,7 +13,7 @@ st.set_page_config(page_title="Therapy Chatbot", page_icon="💬")
 MODEL_NAME = "llama-3.3-70b-versatile"
 API_KEY = os.getenv("GROQ_API_KEY")
 BASE_URL = "https://api.groq.com/openai/v1"
-MAX_TRANSCRIPT_TOKENS = 11000
+MAX_TRANSCRIPT_TOKENS = 9000
 
 # Ensure API key is set
 if not API_KEY:
