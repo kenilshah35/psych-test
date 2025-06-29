@@ -5,6 +5,7 @@ from PyPDF2 import PdfReader
 from docx import Document
 import tiktoken
 import openai
+import time
 
 # Configure page
 st.set_page_config(page_title="Therapy Chatbot", page_icon="💬")
@@ -14,6 +15,7 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 API_KEY = os.getenv("GROQ_API_KEY")
 BASE_URL = "https://api.groq.com/openai/v1"
 MAX_TRANSCRIPT_TOKENS = 9000
+TOKEN_LIMIT_PER_MINUTE = 12000
 
 # Ensure API key is set
 if not API_KEY:
@@ -29,6 +31,10 @@ if "processed_files" not in st.session_state:
     st.session_state.processed_files = set()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "token_count" not in st.session_state:
+    st.session_state.token_count = 0
+if "token_reset_time" not in st.session_state:
+    st.session_state.token_reset_time = time.time()
 
 # Initialize tokenizer for counting tokens
 try:
@@ -47,6 +53,10 @@ def enforce_token_limit(texts: list, max_tokens: int) -> list:
         combined = " ".join(texts)
         total = count_tokens(combined)
     return texts
+
+# Added helper to count tokens in messages
+def count_message_tokens(messages: list) -> int:
+    return sum(count_tokens(msg["content"]) for msg in messages)
 
 def extract_text(uploaded_file) -> str:
     ext = os.path.splitext(uploaded_file.name)[1].lower()
@@ -97,6 +107,15 @@ if uploaded_files:
         st.session_state.transcripts_texts, MAX_TRANSCRIPT_TOKENS
     )
 
+# Token usage tracking: reset every minute and display
+t_current = time.time()
+if t_current - st.session_state.token_reset_time >= 60:
+    st.session_state.token_count = 0
+    st.session_state.token_reset_time = t_current
+
+st.sidebar.title("Token Usage")
+st.sidebar.metric("Tokens this minute", st.session_state.token_count, f"Limit: {TOKEN_LIMIT_PER_MINUTE}")
+
 # Main: Chat interface
 st.title("Therapy Session Chatbot")
 
@@ -109,17 +128,28 @@ for msg in st.session_state.chat_history:
 
 # Prepare initial system messages
 system_messages = [
-    {"role": "system", "content": "You are a helpful therapy assistant. Use the provided transcripts to inform your responses."}
+    {"role": "system", "content": "You are a helpful therapy assistant. You have background transcripts that you should use to inform your responses. Do not reference or reveal the transcripts directly to the user."}
 ]
 if st.session_state.transcripts_texts:
     transcript_str = "\n\n".join(st.session_state.transcripts_texts)
-    system_messages.append({"role": "system", "content": f"Session Transcripts:\n{transcript_str}"})
+    system_messages.append({"role": "system", "content": f"Background transcripts (for internal use only):\n{transcript_str}"})
 
 # Handle user input and generate response
 if user_input := st.chat_input("Your message"):
+    # Add user message
     st.session_state.chat_history.append({"role": "user", "content": user_input})
+    # Display the user message immediately
+    st.chat_message("user").write(user_input)
+    # Remove oldest chats if context token usage exceeds threshold
+    while count_message_tokens(system_messages + st.session_state.chat_history) > 11500 and st.session_state.chat_history:
+        st.session_state.chat_history.pop(0)
+    # Prepare messages and update token usage counter
     full_messages = system_messages + st.session_state.chat_history
+    num_tokens = count_message_tokens(full_messages)
+    st.session_state.token_count += num_tokens
+    # Generate response
     with st.spinner("Generating response..."):
         assistant_response = call_groqcloud_api(full_messages)
+    # Append assistant message and display
     st.session_state.chat_history.append({"role": "assistant", "content": assistant_response})
     st.chat_message("assistant").write(assistant_response)
